@@ -1,0 +1,12 @@
+data/
+.venv/
+__pycache__/
+*.pyc
+.env
+config.json
+dist/
+build/
+*.spec
+CLAUDE.md
+STRUCTURE.md
+.claude/

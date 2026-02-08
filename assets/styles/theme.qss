@@ -1,0 +1,102 @@
+/* Catppuccin Mocha Dark Theme */
+
+QWidget {
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+}
+
+QLabel {
+    background-color: transparent;
+}
+
+QPushButton {
+    background-color: #313244;
+    color: #cdd6f4;
+    border: none;
+    padding: 6px 16px;
+    border-radius: 4px;
+}
+
+QPushButton:hover {
+    background-color: #45475a;
+}
+
+QPushButton:pressed {
+    background-color: #585b70;
+}
+
+QTextEdit, QPlainTextEdit {
+    background-color: #1e1e2e;
+    color: #cdd6f4;
+    border: none;
+    selection-background-color: #45475a;
+    selection-color: #cdd6f4;
+}
+
+QLineEdit {
+    background-color: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+
+QLineEdit:focus {
+    border-color: #89b4fa;
+}
+
+QScrollBar:vertical {
+    background-color: #181825;
+    width: 8px;
+    border: none;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #45475a;
+    border-radius: 4px;
+    min-height: 20px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #585b70;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical,
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical {
+    background: none;
+    height: 0px;
+}
+
+QScrollBar:horizontal {
+    background-color: #181825;
+    height: 8px;
+    border: none;
+}
+
+QScrollBar::handle:horizontal {
+    background-color: #45475a;
+    border-radius: 4px;
+    min-width: 20px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background-color: #585b70;
+}
+
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal,
+QScrollBar::add-page:horizontal,
+QScrollBar::sub-page:horizontal {
+    background: none;
+    width: 0px;
+}
+
+QSplitter::handle {
+    background-color: #181825;
+}
+
+QDialog {
+    background-color: #1e1e2e;
+}
