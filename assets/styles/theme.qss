@@ -94,7 +94,12 @@ QScrollBar::sub-page:horizontal {
 }
 
 QSplitter::handle {
-    background-color: #181825;
+    background-color: #313244;
+    width: 3px;
+}
+
+QSplitter::handle:hover {
+    background-color: #45475a;
 }
 
 QDialog {

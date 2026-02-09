@@ -11,7 +11,7 @@ from src.views.lecture_view import LectureView
 from src.views.review_view import ReviewView
 
 
-DEFAULT_FONT_SIZE = 21
+DEFAULT_FONT_SIZE = 26
 
 
 class MainWindow(QMainWindow):
@@ -59,7 +59,7 @@ class MainWindow(QMainWindow):
         self._set_zoom(DEFAULT_FONT_SIZE)
 
     def _set_zoom(self, size: int):
-        size = max(8, min(28, size))
+        size = max(DEFAULT_FONT_SIZE - 3, min(DEFAULT_FONT_SIZE + 3, size))
         if size == self._font_size:
             return
         self._font_size = size
@@ -81,7 +81,6 @@ class MainWindow(QMainWindow):
 
     def _back_to_lecture(self):
         self._stack.setCurrentWidget(self._lecture)
-
 
 _base_qss = ""
 

@@ -54,16 +54,20 @@ class LectureView(QWidget):
 
         # -- Top navigation bar --
         nav_bar = QWidget()
-        nav_bar.setFixedHeight(40)
+        nav_bar.setFixedHeight(46)
         nav_bar.setStyleSheet("background-color: #181825;")
         nav_layout = QHBoxLayout(nav_bar)
         nav_layout.setContentsMargins(12, 4, 12, 4)
 
         self._prev_btn = QPushButton("< Prev")
         self._prev_btn.setStyleSheet(
-            "QPushButton { padding: 4px 12px; }"
+            "QPushButton { padding: 4px 12px; color: #89b4fa; }"
+            "QPushButton:hover { background-color: #313244; color: #b4befe; }"
         )
         self._prev_btn.clicked.connect(self._prev_slide)
+        sp = self._prev_btn.sizePolicy()
+        sp.setRetainSizeWhenHidden(True)
+        self._prev_btn.setSizePolicy(sp)
         nav_layout.addWidget(self._prev_btn)
 
         nav_layout.addStretch()
@@ -76,46 +80,82 @@ class LectureView(QWidget):
 
         self._next_btn = QPushButton("Next >")
         self._next_btn.setStyleSheet(
-            "QPushButton { padding: 4px 12px; }"
+            "QPushButton { padding: 4px 12px; color: #89b4fa; }"
+            "QPushButton:hover { background-color: #313244; color: #b4befe; }"
         )
         self._next_btn.clicked.connect(self._next_slide)
+        sp = self._next_btn.sizePolicy()
+        sp.setRetainSizeWhenHidden(True)
+        self._next_btn.setSizePolicy(sp)
         nav_layout.addWidget(self._next_btn)
 
         layout.addWidget(nav_bar)
 
         # -- Splitter: slide viewer (left 60%) + notes editor (right 40%) --
+        content_area = QWidget()
+        content_layout = QVBoxLayout(content_area)
+        content_layout.setContentsMargins(8, 0, 8, 0)
+        content_layout.setSpacing(0)
+
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
 
         self._viewer = SlideViewer()
+        self._viewer.setStyleSheet(
+            "SlideViewer { background-color: #181825; border: 1px solid #313244; border-radius: 8px; }"
+        )
         self._editor = NotesEditor()
-        self._editor.setStyleSheet("padding: 8px;")
+        self._editor.setStyleSheet(
+            "NotesEditor { background-color: #1e1e2e; border: 1px solid #313244; border-radius: 8px; padding: 8px; }"
+        )
+
+        self._viewer.setMinimumWidth(250)
+        self._editor.setMinimumWidth(250)
 
         self._splitter.addWidget(self._viewer)
         self._splitter.addWidget(self._editor)
-        self._splitter.setStretchFactor(0, 3)  # 60%
-        self._splitter.setStretchFactor(1, 2)  # 40%
-        # Minimum 25% of width for either panel
+        self._splitter.setSizes([600, 400])  # 60/40 split
+        self._splitter.setStretchFactor(0, 3)
+        self._splitter.setStretchFactor(1, 2)
         self._splitter.setChildrenCollapsible(False)
+        self._splitter.setHandleWidth(4)
+        self._splitter.setStyleSheet(
+            "QSplitter::handle {"
+            "  background-color: #45475a;"
+            "}"
+            "QSplitter::handle:hover {"
+            "  background-color: #89b4fa;"
+            "}"
+        )
 
-        layout.addWidget(self._splitter, 1)
+        content_layout.addWidget(self._splitter)
+        layout.addWidget(content_area, 1)
 
         # -- Bottom bar --
         bottom_bar = QWidget()
-        bottom_bar.setFixedHeight(40)
+        bottom_bar.setFixedHeight(46)
         bottom_bar.setStyleSheet("background-color: #181825;")
         bottom_layout = QHBoxLayout(bottom_bar)
-        bottom_layout.setContentsMargins(12, 4, 12, 4)
+        bottom_layout.setContentsMargins(40, 4, 40, 4)
+
+        home_btn = QPushButton("Home")
+        home_btn.setStyleSheet(
+            "QPushButton { padding: 4px 16px; color: #94e2d5; }"
+            "QPushButton:hover { background-color: #313244; color: #a6e3a1; }"
+        )
+        home_btn.clicked.connect(self.back_requested.emit)
+        bottom_layout.addWidget(home_btn)
+
         bottom_layout.addStretch()
 
         review_btn = QPushButton("Enter Review Mode")
         review_btn.setStyleSheet(
-            "QPushButton { padding: 4px 16px; }"
+            "QPushButton { padding: 4px 16px; color: #cba6f7; }"
+            "QPushButton:hover { background-color: #313244; color: #f5c2e7; }"
         )
         review_btn.clicked.connect(
             lambda: self.review_requested.emit(self._course_id, self._lecture_id)
         )
         bottom_layout.addWidget(review_btn)
-        bottom_layout.addStretch()
 
         layout.addWidget(bottom_bar)
 

@@ -38,7 +38,9 @@ def create_course(name: str) -> Course:
     (course_dir / "lectures").mkdir()
 
     now = datetime.now().isoformat(timespec="seconds")
-    course = Course(id=course_id, name=name, created_at=now)
+    existing = list_courses()
+    order = max((c.order for c in existing), default=-1) + 1
+    course = Course(id=course_id, name=name, created_at=now, order=order)
     _write_json(course_dir / "course.json", course.to_dict())
     return course
 
@@ -47,10 +49,11 @@ def list_courses() -> list[Course]:
     if not COURSES_DIR.exists():
         return []
     courses = []
-    for d in sorted(COURSES_DIR.iterdir()):
+    for d in COURSES_DIR.iterdir():
         cj = d / "course.json"
         if d.is_dir() and cj.exists():
             courses.append(Course.from_dict(_read_json(cj)))
+    courses.sort(key=lambda c: (c.order, c.created_at))
     return courses
 
 
@@ -61,6 +64,15 @@ def rename_course(course_id: str, new_name: str) -> None:
         data = _read_json(cj)
         data["name"] = new_name
         _write_json(cj, data)
+
+
+def reorder_courses(ordered_ids: list[str]) -> None:
+    for i, cid in enumerate(ordered_ids):
+        cj = COURSES_DIR / cid / "course.json"
+        if cj.exists():
+            data = _read_json(cj)
+            data["order"] = i
+            _write_json(cj, data)
 
 
 def delete_course(course_id: str) -> None:
@@ -87,12 +99,15 @@ def create_lecture(course_id: str, title: str, pdf_path: str) -> Session:
     shutil.copy2(pdf_path, lecture_dir / "slides.pdf")
 
     now = datetime.now().isoformat(timespec="seconds")
+    existing = list_lectures(course_id)
+    order = max((s.order for s in existing), default=-1) + 1
     session = Session(
         id=lecture_id,
         title=title,
         pdf_filename="slides.pdf",
         created_at=now,
         updated_at=now,
+        order=order,
     )
     _write_json(lecture_dir / "session.json", session.to_dict())
     return session
@@ -103,11 +118,21 @@ def list_lectures(course_id: str) -> list[Session]:
     if not lectures_dir.exists():
         return []
     sessions = []
-    for d in sorted(lectures_dir.iterdir()):
+    for d in lectures_dir.iterdir():
         sj = d / "session.json"
         if d.is_dir() and sj.exists():
             sessions.append(Session.from_dict(_read_json(sj)))
+    sessions.sort(key=lambda s: (s.order, s.created_at))
     return sessions
+
+
+def reorder_lectures(course_id: str, ordered_ids: list[str]) -> None:
+    for i, lid in enumerate(ordered_ids):
+        sj = COURSES_DIR / course_id / "lectures" / lid / "session.json"
+        if sj.exists():
+            data = _read_json(sj)
+            data["order"] = i
+            _write_json(sj, data)
 
 
 def rename_lecture(course_id: str, lecture_id: str, new_title: str) -> None:

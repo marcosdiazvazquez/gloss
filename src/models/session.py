@@ -22,13 +22,14 @@ class Course:
     id: str
     name: str
     created_at: str
+    order: int = 0
 
     def to_dict(self) -> dict:
-        return {"id": self.id, "name": self.name, "created_at": self.created_at}
+        return {"id": self.id, "name": self.name, "created_at": self.created_at, "order": self.order}
 
     @classmethod
     def from_dict(cls, data: dict) -> Course:
-        return cls(id=data["id"], name=data["name"], created_at=data["created_at"])
+        return cls(id=data["id"], name=data["name"], created_at=data["created_at"], order=data.get("order", 0))
 
 
 @dataclass
@@ -80,6 +81,7 @@ class Session:
     created_at: str
     updated_at: str
     slides: dict[str, SlideData] = field(default_factory=dict)
+    order: int = 0
 
     def to_dict(self) -> dict:
         return {
@@ -89,6 +91,7 @@ class Session:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "slides": {k: v.to_dict() for k, v in self.slides.items()},
+            "order": self.order,
         }
 
     @classmethod
@@ -103,4 +106,5 @@ class Session:
             created_at=data["created_at"],
             updated_at=data["updated_at"],
             slides=slides,
+            order=data.get("order", 0),
         )

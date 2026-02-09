@@ -9,7 +9,9 @@ from PySide6.QtGui import (
     QFont,
     QPainter,
     QSyntaxHighlighter,
+    QTextBlockFormat,
     QTextCharFormat,
+    QTextCursor,
 )
 import re
 
@@ -69,6 +71,14 @@ class NotesEditor(QPlainTextEdit):
         self._save_timer.setSingleShot(True)
         self._save_timer.setInterval(500)
         self._save_timer.timeout.connect(lambda: self.notes_changed.emit(self.toPlainText()))
+
+        # Extra line spacing
+        fmt = QTextBlockFormat()
+        fmt.setLineHeight(140, 1)  # 1 = ProportionalHeight (140%)
+        cursor = self.textCursor()
+        cursor.select(QTextCursor.SelectionType.Document)
+        cursor.mergeBlockFormat(fmt)
+        self.setTextCursor(cursor)
 
         self.textChanged.connect(self._on_text_changed)
 
@@ -130,8 +140,18 @@ class NotesEditor(QPlainTextEdit):
         self._save_timer.stop()
         self.blockSignals(True)
         self.setPlainText(text)
+        self._apply_line_spacing()
         self.blockSignals(False)
         self.viewport().update()
+
+    def _apply_line_spacing(self):
+        fmt = QTextBlockFormat()
+        fmt.setLineHeight(140, 1)  # 1 = ProportionalHeight (140%)
+        cursor = self.textCursor()
+        cursor.select(QTextCursor.SelectionType.Document)
+        cursor.mergeBlockFormat(fmt)
+        cursor.clearSelection()
+        self.setTextCursor(cursor)
 
     def get_notes(self) -> str:
         return self.toPlainText()
