@@ -18,8 +18,8 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QApplication,
 )
-from PySide6.QtCore import Signal, Qt, QMimeData, QPoint, QEvent
-from PySide6.QtGui import QDrag, QPixmap, QPainter, QColor
+from PySide6.QtCore import Signal, Qt, QMimeData, QPoint, QEvent, QUrl
+from PySide6.QtGui import QDrag, QPixmap, QPainter, QColor, QDesktopServices
 
 import src.utils.config as cfg
 from src.models import storage
@@ -96,25 +96,26 @@ class _LectureRow(QWidget):
     rename_requested = Signal()
     delete_requested = Signal()
 
-    def __init__(self, session: Session, parent=None):
+    def __init__(self, session: Session, color: str = "#89b4fa", parent=None):
         super().__init__(parent)
         self.lecture_id = session.id
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._color = color
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._context_menu)
-        self.setStyleSheet(
-            "_LectureRow { border-radius: 6px; }"
-            "_LectureRow:hover { background-color: #313244; }"
-        )
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(28, 4, 12, 4)
 
-        title = QLabel(session.title)
-        title.setStyleSheet("color: #cdd6f4;")
-        title.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        title.setMinimumWidth(0)
-        layout.addWidget(title)
+        self._title = QLabel(session.title)
+        self._title.setStyleSheet(
+            "QLabel { color: #bac2de; border-radius: 4px; padding: 2px 4px; }"
+            f"QLabel:hover {{ background-color: #313244; color: {color}; }}"
+        )
+        self._title.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._title.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        self._title.setMinimumWidth(0)
+        layout.addWidget(self._title)
+        layout.addStretch()
 
         try:
             dt = datetime.fromisoformat(session.created_at)
@@ -123,7 +124,7 @@ class _LectureRow(QWidget):
             date_str = ""
         date_label = QLabel(date_str)
         base = cfg.font_size
-        date_label.setStyleSheet(f"color: #585b70; font-size: {max(base - 2, 8)}pt;")
+        date_label.setStyleSheet(f"color: #6c7086; font-size: {max(base - 2, 8)}pt;")
         layout.addWidget(date_label)
 
         self._drag_start: QPoint | None = None
@@ -153,9 +154,10 @@ class _LectureRow(QWidget):
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton and self._drag_start is not None:
-            # Only emit click if we didn't drag
+            # Only emit click if we didn't drag and clicked on the title
             if (event.position().toPoint() - self._drag_start).manhattanLength() < QApplication.startDragDistance():
-                self.clicked.emit()
+                if self._title.geometry().contains(event.position().toPoint()):
+                    self.clicked.emit()
             self._drag_start = None
         super().mouseReleaseEvent(event)
 
@@ -187,6 +189,10 @@ class _CourseSection(QWidget):
         self.customContextMenuRequested.connect(self._context_menu)
         self.setAcceptDrops(True)
 
+        self.setStyleSheet(
+            f"_CourseSection {{ border-left: 3px solid {color}; padding-left: 8px; }}"
+        )
+
         self._body_layout = QVBoxLayout(self)
         self._body_layout.setContentsMargins(0, 0, 0, 12)
         self._body_layout.setSpacing(2)
@@ -206,7 +212,7 @@ class _CourseSection(QWidget):
         add_btn = QPushButton("+ lecture")
         add_btn.setStyleSheet(
             "QPushButton { padding: 3px 10px; color: #585b70; background: transparent; }"
-            "QPushButton:hover { color: #a6e3a1; }"
+            f"QPushButton:hover {{ color: {color}; }}"
         )
         add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         add_btn.clicked.connect(self._add_lecture)
@@ -221,12 +227,12 @@ class _CourseSection(QWidget):
         self._rows: list[_LectureRow] = []
         if not lectures:
             hint = QLabel("No lectures yet")
-            hint.setStyleSheet("color: #585b70;")
+            hint.setStyleSheet("color: #6c7086; font-style: italic;")
             hint.setContentsMargins(28, 4, 0, 4)
             self._body_layout.addWidget(hint)
         else:
             for session in lectures:
-                row = _LectureRow(session, self)
+                row = _LectureRow(session, color, self)
                 sid = session.id
                 row.clicked.connect(lambda s=sid: self.lecture_clicked.emit(self._course_id, s))
                 row.rename_requested.connect(lambda s=sid: self._rename_lecture(s))
@@ -431,6 +437,26 @@ class HomeView(QWidget):
         self._layout.setContentsMargins(32, 32, 32, 32)
         self._layout.setSpacing(8)
 
+        # Bottom bar
+        bottom_bar = QWidget()
+        bottom_bar.setFixedHeight(36)
+        bottom_bar.setStyleSheet("background-color: #181825;")
+        bottom_layout = QHBoxLayout(bottom_bar)
+        bottom_layout.setContentsMargins(16, 4, 16, 4)
+        bottom_layout.addStretch()
+        github_btn = QPushButton("GitHub")
+        github_btn.setStyleSheet(
+            "QPushButton { color: #585b70; background: transparent; padding: 4px 12px; }"
+            "QPushButton:hover { color: #89b4fa; }"
+        )
+        github_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        github_btn.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl("https://github.com/marcosdiazvazquez/gloss"))
+        )
+        bottom_layout.addWidget(github_btn)
+        bottom_layout.addStretch()
+        outer.addWidget(bottom_bar)
+
     def refresh(self):
         # Clear existing widgets
         self._sections.clear()
@@ -440,7 +466,7 @@ class HomeView(QWidget):
                 item.widget().deleteLater()
 
         # Title
-        title = QLabel("gloss")
+        title = QLabel("gloss v0")
         base = cfg.font_size
         title.setStyleSheet(f"font-weight: bold; font-size: {base * 3}pt; color: #b4befe;")
         self._layout.addWidget(title)

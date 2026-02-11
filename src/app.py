@@ -38,8 +38,8 @@ class MainWindow(QMainWindow):
         self._lecture.review_requested.connect(self._open_review)
         self._review.back_requested.connect(self._back_to_lecture)
 
-        # Escape → Home from any view
-        QShortcut(QKeySequence(Qt.Key.Key_Escape), self, self.show_home)
+        # Escape — context-dependent (lecture view handles its own)
+        QShortcut(QKeySequence(Qt.Key.Key_Escape), self, self._handle_escape)
 
         # Zoom shortcuts (Ctrl maps to Cmd on macOS)
         QShortcut(QKeySequence("Ctrl+="), self, self._zoom_in)
@@ -78,6 +78,14 @@ class MainWindow(QMainWindow):
     def _open_review(self, course_id: str, lecture_id: str):
         self._review.load(course_id, lecture_id)
         self._stack.setCurrentWidget(self._review)
+
+    def _handle_escape(self):
+        current = self._stack.currentWidget()
+        if current == self._lecture:
+            self._lecture.handle_escape()
+        elif current == self._review:
+            self._back_to_lecture()
+        # HomeView: do nothing
 
     def _back_to_lecture(self):
         self._stack.setCurrentWidget(self._lecture)

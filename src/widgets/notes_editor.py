@@ -26,13 +26,13 @@ SYMBOL_COLORS = {
 GHOST_COLOR = QColor("#585b70")
 
 PLACEHOLDER_TEXT = (
-    "- your notes here\n"
-    "? questions you have\n"
-    "~ things you're unsure about\n"
-    "! important stuff"
+    "  - your notes here\n"
+    "  ? questions you have\n"
+    "  ~ things you're unsure about\n"
+    "  ! important stuff"
 )
 
-INLINE_HINT = "- note  |  ? question  |  ~ unsure  |  ! important"
+INLINE_HINT = "  - note  |  ? question  |  ~ unsure  |  ! important"
 
 
 class _NoteHighlighter(QSyntaxHighlighter):
@@ -74,13 +74,47 @@ class NotesEditor(QPlainTextEdit):
 
         # Extra line spacing
         fmt = QTextBlockFormat()
-        fmt.setLineHeight(140, 1)  # 1 = ProportionalHeight (140%)
+        fmt.setLineHeight(160, 1)  # 1 = ProportionalHeight (160%)
         cursor = self.textCursor()
         cursor.select(QTextCursor.SelectionType.Document)
         cursor.mergeBlockFormat(fmt)
+        cursor.clearSelection()
         self.setTextCursor(cursor)
 
         self.textChanged.connect(self._on_text_changed)
+        self.cursorPositionChanged.connect(lambda: self.viewport().update())
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Tab:
+            return  # ignore Tab — no tab characters in notes
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            cursor = self.textCursor()
+            fmt = cursor.blockFormat()
+            block = cursor.block()
+            has_text = block.text().strip() != ""
+
+            if has_text and cursor.atBlockEnd():
+                # After a note: insert blank separator + new line
+                cursor.insertBlock(fmt)
+                cursor.insertBlock(fmt)
+            else:
+                cursor.insertBlock(fmt)
+
+            self.setTextCursor(cursor)
+            return
+        super().keyPressEvent(event)
+
+    def focusInEvent(self, event):
+        super().focusInEvent(event)
+        self.viewport().update()
+
+    def focusOutEvent(self, event):
+        super().focusOutEvent(event)
+        self.viewport().update()
+
+    def mouseReleaseEvent(self, event):
+        super().mouseReleaseEvent(event)
+        self.viewport().update()
 
     def _on_text_changed(self):
         self._save_timer.start()
@@ -90,6 +124,9 @@ class NotesEditor(QPlainTextEdit):
 
     def paintEvent(self, event):
         super().paintEvent(event)
+
+        if not self.hasFocus():
+            return
 
         if self.toPlainText():
             # If there's text, check if current line is empty for inline hint
@@ -120,13 +157,12 @@ class NotesEditor(QPlainTextEdit):
         painter.end()
 
     def _paint_inline_hint(self, block):
+        rect = self.blockBoundingGeometry(block).translated(self.contentOffset())
+        if rect.height() <= 0:
+            return
         painter = QPainter(self.viewport())
         painter.setPen(GHOST_COLOR)
-        font = self.font()
-        font.setPointSize(max(font.pointSize() - 1, 8))
-        painter.setFont(font)
-
-        rect = self.blockBoundingGeometry(block).translated(self.contentOffset())
+        painter.setFont(self.font())
         fm = painter.fontMetrics()
         x = int(rect.left() + self.document().documentMargin())
         y = int(rect.top() + fm.ascent())
@@ -146,7 +182,7 @@ class NotesEditor(QPlainTextEdit):
 
     def _apply_line_spacing(self):
         fmt = QTextBlockFormat()
-        fmt.setLineHeight(140, 1)  # 1 = ProportionalHeight (140%)
+        fmt.setLineHeight(160, 1)  # 1 = ProportionalHeight (160%)
         cursor = self.textCursor()
         cursor.select(QTextCursor.SelectionType.Document)
         cursor.mergeBlockFormat(fmt)

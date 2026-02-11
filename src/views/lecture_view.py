@@ -17,6 +17,7 @@ from PySide6.QtWidgets import QApplication
 from src.models import storage
 from src.models.session import Session, SlideData
 from src.utils.config import COURSES_DIR
+from src.views.home_view import COURSE_COLORS
 from src.widgets.slide_viewer import SlideViewer
 from src.widgets.notes_editor import NotesEditor
 
@@ -39,10 +40,13 @@ class LectureView(QWidget):
         if (event.type() == QEvent.Type.KeyPress
                 and self.isVisible()
                 and not self._editor.hasFocus()):
-            if event.key() == Qt.Key.Key_Left:
+            if event.key() == Qt.Key.Key_Tab:
+                self._editor.setFocus()
+                return True
+            elif event.key() in (Qt.Key.Key_Left, Qt.Key.Key_K):
                 self._prev_slide()
                 return True
-            elif event.key() == Qt.Key.Key_Right:
+            elif event.key() in (Qt.Key.Key_Right, Qt.Key.Key_J):
                 self._next_slide()
                 return True
         return super().eventFilter(obj, event)
@@ -54,7 +58,7 @@ class LectureView(QWidget):
 
         # -- Top navigation bar --
         nav_bar = QWidget()
-        nav_bar.setFixedHeight(46)
+        nav_bar.setFixedHeight(50)
         nav_bar.setStyleSheet("background-color: #181825;")
         nav_layout = QHBoxLayout(nav_bar)
         nav_layout.setContentsMargins(12, 4, 12, 4)
@@ -132,7 +136,7 @@ class LectureView(QWidget):
 
         # -- Bottom bar --
         bottom_bar = QWidget()
-        bottom_bar.setFixedHeight(46)
+        bottom_bar.setFixedHeight(50)
         bottom_bar.setStyleSheet("background-color: #181825;")
         bottom_layout = QHBoxLayout(bottom_bar)
         bottom_layout.setContentsMargins(40, 4, 40, 4)
@@ -165,6 +169,14 @@ class LectureView(QWidget):
 
     # -- Public API ---------------------------------------------------------
 
+    def handle_escape(self):
+        """First Escape: leave editor → slide view. Second Escape: go home."""
+        if self._editor.hasFocus():
+            self._viewer.setFocus()
+        else:
+            self._flush_notes()
+            self.back_requested.emit()
+
     def load(self, course_id: str, lecture_id: str):
         # Save notes from previous session if any
         self._flush_notes()
@@ -172,6 +184,15 @@ class LectureView(QWidget):
         self._course_id = course_id
         self._lecture_id = lecture_id
         self._session = storage.load_session(course_id, lecture_id)
+
+        # Determine course color (same index logic as home view)
+        courses = storage.list_courses()
+        color = "#cdd6f4"  # fallback
+        for i, c in enumerate(courses):
+            if c.id == course_id:
+                color = COURSE_COLORS[i % len(COURSE_COLORS)]
+                break
+        self._page_label.setStyleSheet(f"color: {color};")
 
         pdf_path = COURSES_DIR / course_id / "lectures" / lecture_id / self._session.pdf_filename
         self._viewer.load_pdf(pdf_path)
