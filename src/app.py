@@ -71,12 +71,12 @@ class MainWindow(QMainWindow):
         self._home.refresh()
         self._stack.setCurrentWidget(self._home)
 
-    def _open_lecture(self, course_id: str, lecture_id: str):
-        self._lecture.load(course_id, lecture_id)
+    def _open_lecture(self, course_id: str, lecture_id: str, group_id: str = ""):
+        self._lecture.load(course_id, lecture_id, group_id=group_id or None)
         self._stack.setCurrentWidget(self._lecture)
 
-    def _open_review(self, course_id: str, lecture_id: str):
-        self._review.load(course_id, lecture_id)
+    def _open_review(self, course_id: str, lecture_id: str, group_id: str = ""):
+        self._review.load(course_id, lecture_id, group_id=group_id or None)
         self._stack.setCurrentWidget(self._review)
 
     def _handle_escape(self):
@@ -88,6 +88,7 @@ class MainWindow(QMainWindow):
         # HomeView: do nothing
 
     def _back_to_lecture(self):
+        self._lecture.refresh_session()
         self._stack.setCurrentWidget(self._lecture)
 
 _base_qss = ""

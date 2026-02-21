@@ -89,17 +89,8 @@ class NotesEditor(QPlainTextEdit):
             return  # ignore Tab — no tab characters in notes
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             cursor = self.textCursor()
-            fmt = cursor.blockFormat()
-            block = cursor.block()
-            has_text = block.text().strip() != ""
-
-            if has_text and cursor.atBlockEnd():
-                # After a note: insert blank separator + new line
-                cursor.insertBlock(fmt)
-                cursor.insertBlock(fmt)
-            else:
-                cursor.insertBlock(fmt)
-
+            fmt = cursor.blockFormat()  # carries 160% line height to new block
+            cursor.insertBlock(fmt)
             self.setTextCursor(cursor)
             return
         super().keyPressEvent(event)

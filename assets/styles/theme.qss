@@ -104,4 +104,107 @@ QSplitter::handle:hover {
 
 QDialog {
     background-color: #1e1e2e;
+    color: #cdd6f4;
+}
+
+/* -- Message boxes & input dialogs ---------------------------------------- */
+
+QMessageBox {
+    background-color: #1e1e2e;
+}
+
+QMessageBox QLabel {
+    color: #cdd6f4;
+}
+
+QMessageBox QPushButton {
+    background-color: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 6px 20px;
+    min-width: 70px;
+}
+
+QMessageBox QPushButton:hover {
+    background-color: #45475a;
+    border-color: #585b70;
+}
+
+QMessageBox QPushButton:focus {
+    border-color: #89b4fa;
+}
+
+QInputDialog {
+    background-color: #1e1e2e;
+}
+
+QInputDialog QLabel {
+    color: #cdd6f4;
+}
+
+QInputDialog QLineEdit {
+    background-color: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 6px;
+}
+
+QInputDialog QLineEdit:focus {
+    border-color: #89b4fa;
+}
+
+QInputDialog QPushButton {
+    background-color: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 6px 20px;
+    min-width: 70px;
+}
+
+QInputDialog QPushButton:hover {
+    background-color: #45475a;
+    border-color: #585b70;
+}
+
+QInputDialog QPushButton:focus {
+    border-color: #89b4fa;
+}
+
+/* -- Context menus (global fallback) -------------------------------------- */
+
+QMenu {
+    background-color: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 8px;
+    padding: 6px 0px;
+}
+
+QMenu::item {
+    padding: 8px 24px;
+    margin: 2px 6px;
+    border-radius: 4px;
+}
+
+QMenu::item:selected {
+    background-color: #45475a;
+}
+
+QMenu::separator {
+    height: 1px;
+    background-color: #45475a;
+    margin: 4px 12px;
+}
+
+/* -- Tooltips ------------------------------------------------------------- */
+
+QToolTip {
+    background-color: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 4px 8px;
 }

@@ -16,7 +16,6 @@ from PySide6.QtWidgets import QApplication
 
 from src.models import storage
 from src.models.session import Session, SlideData
-from src.utils.config import COURSES_DIR
 from src.views.home_view import COURSE_COLORS
 from src.widgets.slide_viewer import SlideViewer
 from src.widgets.notes_editor import NotesEditor
@@ -26,12 +25,13 @@ class LectureView(QWidget):
     """Slide viewer + notes panel — the core lecture experience."""
 
     back_requested = Signal()
-    review_requested = Signal(str, str)  # course_id, lecture_id
+    review_requested = Signal(str, str, str)  # course_id, lecture_id, group_id
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._course_id: str = ""
         self._lecture_id: str = ""
+        self._group_id: str | None = None
         self._session: Session | None = None
         self._init_ui()
         QApplication.instance().installEventFilter(self)
@@ -151,15 +151,34 @@ class LectureView(QWidget):
 
         bottom_layout.addStretch()
 
-        review_btn = QPushButton("Enter Review Mode")
-        review_btn.setStyleSheet(
+        # Finalize / Edit toggle
+        self._finalize_btn = QPushButton("Finalize Notes")
+        self._finalize_btn.setStyleSheet(
+            "QPushButton { padding: 4px 16px; color: #a6e3a1; }"
+            "QPushButton:hover { background-color: #313244; color: #94e2d5; }"
+        )
+        self._finalize_btn.clicked.connect(self._finalize_notes)
+        bottom_layout.addWidget(self._finalize_btn)
+
+        self._edit_btn = QPushButton("Edit Notes")
+        self._edit_btn.setStyleSheet(
+            "QPushButton { padding: 4px 16px; color: #fab387; }"
+            "QPushButton:hover { background-color: #313244; color: #f9e2af; }"
+        )
+        self._edit_btn.clicked.connect(self._unlock_notes)
+        self._edit_btn.hide()
+        bottom_layout.addWidget(self._edit_btn)
+
+        self._review_btn = QPushButton("Enter Review Mode")
+        self._review_btn.setStyleSheet(
             "QPushButton { padding: 4px 16px; color: #cba6f7; }"
             "QPushButton:hover { background-color: #313244; color: #f5c2e7; }"
         )
-        review_btn.clicked.connect(
-            lambda: self.review_requested.emit(self._course_id, self._lecture_id)
+        self._review_btn.clicked.connect(
+            lambda: self.review_requested.emit(self._course_id, self._lecture_id, self._group_id or "")
         )
-        bottom_layout.addWidget(review_btn)
+        self._review_btn.hide()
+        bottom_layout.addWidget(self._review_btn)
 
         layout.addWidget(bottom_bar)
 
@@ -177,13 +196,14 @@ class LectureView(QWidget):
             self._flush_notes()
             self.back_requested.emit()
 
-    def load(self, course_id: str, lecture_id: str):
+    def load(self, course_id: str, lecture_id: str, group_id: str | None = None):
         # Save notes from previous session if any
         self._flush_notes()
 
         self._course_id = course_id
         self._lecture_id = lecture_id
-        self._session = storage.load_session(course_id, lecture_id)
+        self._group_id = group_id
+        self._session = storage.load_session(course_id, lecture_id, group_id=group_id)
 
         # Determine course color (same index logic as home view)
         courses = storage.list_courses()
@@ -194,9 +214,15 @@ class LectureView(QWidget):
                 break
         self._page_label.setStyleSheet(f"color: {color};")
 
-        pdf_path = COURSES_DIR / course_id / "lectures" / lecture_id / self._session.pdf_filename
+        pdf_path = storage.lecture_dir_path(course_id, lecture_id, group_id) / self._session.pdf_filename
         self._viewer.load_pdf(pdf_path)
         self._load_notes_for_page(0)
+
+        # Restore finalized state
+        if self._session.finalized:
+            self._apply_finalized_ui()
+        else:
+            self._apply_editing_ui()
 
     # -- Slide navigation ---------------------------------------------------
 
@@ -241,7 +267,7 @@ class LectureView(QWidget):
                 return  # don't create empty slide entries
             self._session.slides[key] = SlideData()
         self._session.slides[key].raw_notes = text
-        storage.save_session(self._course_id, self._session)
+        storage.save_session(self._course_id, self._session, group_id=self._group_id)
 
     def _save_current_notes(self, text: str):
         """Called by the editor's debounced notes_changed signal."""
@@ -253,4 +279,60 @@ class LectureView(QWidget):
                 return
             self._session.slides[key] = SlideData()
         self._session.slides[key].raw_notes = text
-        storage.save_session(self._course_id, self._session)
+        storage.save_session(self._course_id, self._session, group_id=self._group_id)
+
+    def refresh_session(self):
+        """Reload session from disk to pick up changes (e.g. reviews saved by ReviewView)."""
+        if self._course_id and self._lecture_id:
+            self._session = storage.load_session(self._course_id, self._lecture_id, group_id=self._group_id)
+
+    # -- Finalize / Edit toggle -----------------------------------------------
+
+    def _finalize_notes(self):
+        """Lock editing, snapshot notes, enable review mode."""
+        if not self._session:
+            return
+        self._flush_notes()
+
+        # Snapshot current notes — clear reviews only for changed slides
+        old_snapshot = self._session.finalized_notes
+        new_snapshot: dict[str, str] = {}
+        for key, slide in self._session.slides.items():
+            if slide.raw_notes.strip():
+                new_snapshot[key] = slide.raw_notes
+        for key in new_snapshot:
+            if new_snapshot[key] != old_snapshot.get(key, ""):
+                # Notes changed — clear cached reviews for this slide
+                if key in self._session.slides:
+                    self._session.slides[key].review = []
+
+        self._session.finalized = True
+        self._session.finalized_notes = new_snapshot
+        storage.save_session(self._course_id, self._session, group_id=self._group_id)
+        self._apply_finalized_ui()
+
+    def _unlock_notes(self):
+        """Re-enable editing, hide review mode button."""
+        if not self._session:
+            return
+        self._session.finalized = False
+        storage.save_session(self._course_id, self._session, group_id=self._group_id)
+        self._apply_editing_ui()
+
+    def _apply_finalized_ui(self):
+        self._editor.setReadOnly(True)
+        self._editor.setStyleSheet(
+            "NotesEditor { background-color: #1e1e2e; border: 1px solid #a6e3a1; border-radius: 8px; padding: 8px; }"
+        )
+        self._finalize_btn.hide()
+        self._edit_btn.show()
+        self._review_btn.show()
+
+    def _apply_editing_ui(self):
+        self._editor.setReadOnly(False)
+        self._editor.setStyleSheet(
+            "NotesEditor { background-color: #1e1e2e; border: 1px solid #313244; border-radius: 8px; padding: 8px; }"
+        )
+        self._finalize_btn.show()
+        self._edit_btn.hide()
+        self._review_btn.hide()

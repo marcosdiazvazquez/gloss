@@ -33,6 +33,21 @@ class Course:
 
 
 @dataclass
+class Group:
+    id: str
+    name: str
+    created_at: str
+    order: int = 0
+
+    def to_dict(self) -> dict:
+        return {"id": self.id, "name": self.name, "created_at": self.created_at, "order": self.order}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Group:
+        return cls(id=data["id"], name=data["name"], created_at=data["created_at"], order=data.get("order", 0))
+
+
+@dataclass
 class ReviewItem:
     note_type: str
     original: str
@@ -82,9 +97,11 @@ class Session:
     updated_at: str
     slides: dict[str, SlideData] = field(default_factory=dict)
     order: int = 0
+    finalized: bool = False
+    finalized_notes: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "id": self.id,
             "title": self.title,
             "pdf_filename": self.pdf_filename,
@@ -93,6 +110,10 @@ class Session:
             "slides": {k: v.to_dict() for k, v in self.slides.items()},
             "order": self.order,
         }
+        if self.finalized:
+            d["finalized"] = True
+            d["finalized_notes"] = self.finalized_notes
+        return d
 
     @classmethod
     def from_dict(cls, data: dict) -> Session:
@@ -107,4 +128,6 @@ class Session:
             updated_at=data["updated_at"],
             slides=slides,
             order=data.get("order", 0),
+            finalized=data.get("finalized", False),
+            finalized_notes=data.get("finalized_notes", {}),
         )
