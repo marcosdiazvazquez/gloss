@@ -486,6 +486,11 @@ class ReviewView(QWidget):
         self, slide_key: str, item_idx: int, card, question: str, answer: str
     ):
         card.add_followup_response(question, answer)
+        # Scroll to bottom so the user can see the full response
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(50, lambda: self._right_scroll.verticalScrollBar().setValue(
+            self._right_scroll.verticalScrollBar().maximum()
+        ))
         if self._session and slide_key in self._session.slides:
             item = self._session.slides[slide_key].review[item_idx]
             item.followups.append(FollowupMessage(role="user", text=question))
