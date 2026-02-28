@@ -38,7 +38,7 @@ class LectureView(QWidget):
 
     def eventFilter(self, obj, event):
         # Only yield to the editor when it's editable and actively focused.
-        # A read-only (finalized) editor that happens to have focus should not
+        # A read-only (normal mode) editor that happens to have focus should not
         # block slide navigation — the user can't type there anyway.
         editor_active = self._editor.hasFocus() and not self._editor.isReadOnly()
         if event.type() == QEvent.Type.KeyPress and self.isVisible() and not editor_active:
@@ -51,6 +51,10 @@ class LectureView(QWidget):
                 return True
             elif event.key() in (Qt.Key.Key_Right, Qt.Key.Key_J):
                 self._next_slide()
+                return True
+            elif event.key() == Qt.Key.Key_I and self._editor.isReadOnly():
+                self._enter_edit_mode()
+                self._editor.setFocus()
                 return True
         return super().eventFilter(obj, event)
 
@@ -154,23 +158,23 @@ class LectureView(QWidget):
 
         bottom_layout.addStretch()
 
-        # Finalize / Edit toggle
-        self._finalize_btn = QPushButton("Finalize Notes")
-        self._finalize_btn.setStyleSheet(
-            "QPushButton { padding: 4px 16px; color: #a6e3a1; }"
-            "QPushButton:hover { background-color: #313244; color: #94e2d5; }"
-        )
-        self._finalize_btn.clicked.connect(self._finalize_notes)
-        bottom_layout.addWidget(self._finalize_btn)
-
-        self._edit_btn = QPushButton("Edit Notes")
+        # Normal / Edit mode toggle
+        self._edit_btn = QPushButton("Edit Mode")
         self._edit_btn.setStyleSheet(
             "QPushButton { padding: 4px 16px; color: #fab387; }"
             "QPushButton:hover { background-color: #313244; color: #f9e2af; }"
         )
-        self._edit_btn.clicked.connect(self._unlock_notes)
-        self._edit_btn.hide()
+        self._edit_btn.clicked.connect(self._enter_edit_mode)
         bottom_layout.addWidget(self._edit_btn)
+
+        self._normal_btn = QPushButton("Normal Mode")
+        self._normal_btn.setStyleSheet(
+            "QPushButton { padding: 4px 16px; color: #a6e3a1; }"
+            "QPushButton:hover { background-color: #313244; color: #94e2d5; }"
+        )
+        self._normal_btn.clicked.connect(self._enter_normal_mode)
+        self._normal_btn.hide()
+        bottom_layout.addWidget(self._normal_btn)
 
         self._review_btn = QPushButton("Enter Review Mode")
         self._review_btn.setStyleSheet(
@@ -195,8 +199,9 @@ class LectureView(QWidget):
     # -- Public API ---------------------------------------------------------
 
     def handle_escape(self):
-        """First Escape: leave editor → slide view. Second Escape: go home."""
-        if self._editor.hasFocus():
+        """In edit mode: return to normal mode. In normal mode: go home."""
+        if not self._editor.isReadOnly():
+            self._enter_normal_mode()
             self._viewer.setFocus()
         else:
             self._flush_notes()
@@ -224,11 +229,8 @@ class LectureView(QWidget):
         self._viewer.load_pdf(pdf_path)
         self._load_notes_for_page(0)
 
-        # Restore finalized state
-        if self._session.finalized:
-            self._apply_finalized_ui()
-        else:
-            self._apply_editing_ui()
+        # Always start in Normal Mode (read-only)
+        self._apply_normal_ui()
 
     # -- Slide navigation ---------------------------------------------------
 
@@ -292,10 +294,16 @@ class LectureView(QWidget):
         if self._course_id and self._lecture_id:
             self._session = storage.load_session(self._course_id, self._lecture_id, group_id=self._group_id)
 
-    # -- Finalize / Edit toggle -----------------------------------------------
+    # -- Normal / Edit mode toggle --------------------------------------------
 
-    def _finalize_notes(self):
-        """Lock editing, snapshot notes, enable review mode."""
+    def _enter_edit_mode(self):
+        """Enable editing."""
+        if not self._session:
+            return
+        self._apply_edit_ui()
+
+    def _enter_normal_mode(self):
+        """Lock editing, snapshot notes, clear stale reviews."""
         if not self._session:
             return
         self._flush_notes()
@@ -308,37 +316,27 @@ class LectureView(QWidget):
                 new_snapshot[key] = slide.raw_notes
         for key in new_snapshot:
             if new_snapshot[key] != old_snapshot.get(key, ""):
-                # Notes changed — clear cached reviews for this slide
                 if key in self._session.slides:
                     self._session.slides[key].review = []
 
-        self._session.finalized = True
         self._session.finalized_notes = new_snapshot
         storage.save_session(self._course_id, self._session, group_id=self._group_id)
-        self._apply_finalized_ui()
+        self._apply_normal_ui()
 
-    def _unlock_notes(self):
-        """Re-enable editing, hide review mode button."""
-        if not self._session:
-            return
-        self._session.finalized = False
-        storage.save_session(self._course_id, self._session, group_id=self._group_id)
-        self._apply_editing_ui()
-
-    def _apply_finalized_ui(self):
+    def _apply_normal_ui(self):
         self._editor.setReadOnly(True)
         self._editor.setStyleSheet(
             "NotesEditor { background-color: #1e1e2e; border: none; border-radius: 8px; padding: 8px; }"
         )
-        self._finalize_btn.hide()
         self._edit_btn.show()
+        self._normal_btn.hide()
         self._review_btn.show()
 
-    def _apply_editing_ui(self):
+    def _apply_edit_ui(self):
         self._editor.setReadOnly(False)
         self._editor.setStyleSheet(
             "NotesEditor { background-color: #1e1e2e; border: none; border-radius: 8px; padding: 8px; }"
         )
-        self._finalize_btn.show()
         self._edit_btn.hide()
+        self._normal_btn.show()
         self._review_btn.hide()

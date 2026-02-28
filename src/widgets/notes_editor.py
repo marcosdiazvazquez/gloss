@@ -129,10 +129,15 @@ class NotesEditor(QPlainTextEdit):
             # No text at all — show full ghost placeholder
             self._paint_placeholder()
 
+    def _ghost_font(self):
+        font = QFont(self.font())
+        font.setPointSize(max(font.pointSize() - 2, 8))
+        return font
+
     def _paint_placeholder(self):
         painter = QPainter(self.viewport())
         painter.setPen(GHOST_COLOR)
-        painter.setFont(self.font())
+        painter.setFont(self._ghost_font())
 
         # Use the first block's geometry so ghost text aligns with real text
         block = self.document().firstBlock()
@@ -153,7 +158,7 @@ class NotesEditor(QPlainTextEdit):
             return
         painter = QPainter(self.viewport())
         painter.setPen(GHOST_COLOR)
-        painter.setFont(self.font())
+        painter.setFont(self._ghost_font())
         fm = painter.fontMetrics()
         x = int(rect.left() + self.document().documentMargin())
         y = int(rect.top() + fm.ascent())
