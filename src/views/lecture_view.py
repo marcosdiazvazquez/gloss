@@ -25,7 +25,7 @@ class LectureView(QWidget):
     """Slide viewer + notes panel — the core lecture experience."""
 
     back_requested = Signal()
-    review_requested = Signal(str, str, str)  # course_id, lecture_id, group_id
+    review_requested = Signal(str, str, str, int)  # course_id, lecture_id, group_id, page
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -37,11 +37,14 @@ class LectureView(QWidget):
         QApplication.instance().installEventFilter(self)
 
     def eventFilter(self, obj, event):
-        if (event.type() == QEvent.Type.KeyPress
-                and self.isVisible()
-                and not self._editor.hasFocus()):
+        # Only yield to the editor when it's editable and actively focused.
+        # A read-only (finalized) editor that happens to have focus should not
+        # block slide navigation — the user can't type there anyway.
+        editor_active = self._editor.hasFocus() and not self._editor.isReadOnly()
+        if event.type() == QEvent.Type.KeyPress and self.isVisible() and not editor_active:
             if event.key() == Qt.Key.Key_Tab:
-                self._editor.setFocus()
+                if not self._editor.isReadOnly():
+                    self._editor.setFocus()
                 return True
             elif event.key() in (Qt.Key.Key_Left, Qt.Key.Key_K):
                 self._prev_slide()
@@ -109,7 +112,7 @@ class LectureView(QWidget):
         )
         self._editor = NotesEditor()
         self._editor.setStyleSheet(
-            "NotesEditor { background-color: #1e1e2e; border: 1px solid #313244; border-radius: 8px; padding: 8px; }"
+            "NotesEditor { background-color: #1e1e2e; border: none; border-radius: 8px; padding: 8px; }"
         )
 
         self._viewer.setMinimumWidth(250)
@@ -175,7 +178,10 @@ class LectureView(QWidget):
             "QPushButton:hover { background-color: #313244; color: #f5c2e7; }"
         )
         self._review_btn.clicked.connect(
-            lambda: self.review_requested.emit(self._course_id, self._lecture_id, self._group_id or "")
+            lambda: self.review_requested.emit(
+                self._course_id, self._lecture_id,
+                self._group_id or "", self._viewer.current_page,
+            )
         )
         self._review_btn.hide()
         bottom_layout.addWidget(self._review_btn)
@@ -322,7 +328,7 @@ class LectureView(QWidget):
     def _apply_finalized_ui(self):
         self._editor.setReadOnly(True)
         self._editor.setStyleSheet(
-            "NotesEditor { background-color: #1e1e2e; border: 1px solid #a6e3a1; border-radius: 8px; padding: 8px; }"
+            "NotesEditor { background-color: #1e1e2e; border: none; border-radius: 8px; padding: 8px; }"
         )
         self._finalize_btn.hide()
         self._edit_btn.show()
@@ -331,7 +337,7 @@ class LectureView(QWidget):
     def _apply_editing_ui(self):
         self._editor.setReadOnly(False)
         self._editor.setStyleSheet(
-            "NotesEditor { background-color: #1e1e2e; border: 1px solid #313244; border-radius: 8px; padding: 8px; }"
+            "NotesEditor { background-color: #1e1e2e; border: none; border-radius: 8px; padding: 8px; }"
         )
         self._finalize_btn.show()
         self._edit_btn.hide()

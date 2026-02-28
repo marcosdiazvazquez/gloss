@@ -75,8 +75,8 @@ class MainWindow(QMainWindow):
         self._lecture.load(course_id, lecture_id, group_id=group_id or None)
         self._stack.setCurrentWidget(self._lecture)
 
-    def _open_review(self, course_id: str, lecture_id: str, group_id: str = ""):
-        self._review.load(course_id, lecture_id, group_id=group_id or None)
+    def _open_review(self, course_id: str, lecture_id: str, group_id: str = "", page: int = 0):
+        self._review.load(course_id, lecture_id, group_id=group_id or None, initial_page=page)
         self._stack.setCurrentWidget(self._review)
 
     def _handle_escape(self):

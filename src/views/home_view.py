@@ -20,13 +20,19 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QCheckBox,
 )
-from PySide6.QtCore import Signal, Qt, QMimeData, QPoint, QEvent, QUrl
+from PySide6.QtCore import Signal, Qt, QMimeData, QPoint, QEvent, QUrl, QTimer
 from PySide6.QtGui import QDrag, QPixmap, QPainter, QColor, QDesktopServices
 
 import src.utils.config as cfg
 from src.models import storage
 from src.models.session import Group, Session
-from src.utils.config import load_api_key, save_api_key, load_model, save_model, AVAILABLE_MODELS
+from src.utils.config import (
+    load_api_key, save_api_key, load_model, save_model, AVAILABLE_MODELS,
+    load_openai_api_key, save_openai_api_key, load_openai_model, save_openai_model,
+    AVAILABLE_OPENAI_MODELS, load_provider, save_provider,
+    load_gemini_api_key, save_gemini_api_key, load_gemini_model, save_gemini_model,
+    AVAILABLE_GEMINI_MODELS,
+)
 
 COURSE_COLORS = [
     "#f38ba8",  # Red
@@ -850,25 +856,53 @@ _INPUT_QSS = (
 _MODEL_BTN_OFF = (
     "QPushButton { background-color: #313244; border: 1px solid #45475a; "
     "border-radius: 4px; padding: 6px 10px; color: #a6adc8; "
-    "font-size: 11pt; text-align: left; }"
+    "font-size: 10pt; text-align: left; }"
     "QPushButton:hover { border-color: #585b70; }"
 )
 
 _MODEL_BTN_ON = (
     "QPushButton { background-color: #313244; border: 1px solid #fab387; "
     "border-radius: 4px; padding: 6px 10px; color: #cdd6f4; "
-    "font-size: 11pt; text-align: left; }"
+    "font-size: 10pt; text-align: left; }"
     "QPushButton:hover { border-color: #fab387; }"
 )
 
+_MODEL_BTN_ON_GREEN = (
+    "QPushButton { background-color: #313244; border: 1px solid #a6e3a1; "
+    "border-radius: 4px; padding: 6px 10px; color: #cdd6f4; "
+    "font-size: 10pt; text-align: left; }"
+    "QPushButton:hover { border-color: #a6e3a1; }"
+)
+
+_MODEL_BTN_ON_BLUE = (
+    "QPushButton { background-color: #313244; border: 1px solid #89b4fa; "
+    "border-radius: 4px; padding: 6px 10px; color: #cdd6f4; "
+    "font-size: 10pt; text-align: left; }"
+    "QPushButton:hover { border-color: #89b4fa; }"
+)
+
+class _ProviderHeader(QLabel):
+    """Clickable section header label — avoids QPushButton sizing quirks on macOS."""
+
+    clicked = Signal()
+
+    def __init__(self, text: str, parent=None):
+        super().__init__(text, parent)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setStyleSheet("font-size: 12pt; font-weight: bold;")
+
+    def mousePressEvent(self, event):
+        self.clicked.emit()
+        super().mousePressEvent(event)
+
 
 class _SettingsDialog(QDialog):
-    """Settings dialog for API keys and model selection."""
+    """Settings dialog — Anthropic and OpenAI provider configuration."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Settings")
-        self.setFixedWidth(400)
+        self.setFixedWidth(440)
         self.setStyleSheet(_SETTINGS_QSS)
 
         layout = QVBoxLayout(self)
@@ -880,58 +914,144 @@ class _SettingsDialog(QDialog):
         layout.addWidget(title)
         layout.addSpacing(4)
 
-        # -- Provider section --
-        provider_label = QLabel("Anthropic")
-        provider_label.setStyleSheet("color: #fab387; font-weight: bold; font-size: 12pt;")
-        layout.addWidget(provider_label)
+        self._active_provider = load_provider()
+        self._selected_anthropic_model = load_model()
+        self._selected_openai_model = load_openai_model()
+        self._selected_gemini_model = load_gemini_model()
+        self._anthropic_model_buttons: list[tuple[str, QPushButton]] = []
+        self._openai_model_buttons: list[tuple[str, QPushButton]] = []
+        self._gemini_model_buttons: list[tuple[str, QPushButton]] = []
 
-        # API key
-        key_label = QLabel("API Key")
-        key_label.setStyleSheet("color: #a6adc8;")
-        layout.addWidget(key_label)
+        # ── Anthropic section ──────────────────────────────────────────────
+        self._anthropic_header = _ProviderHeader("Anthropic")
+        self._anthropic_header.clicked.connect(lambda: self._set_provider("anthropic"))
+        layout.addWidget(self._anthropic_header)
 
-        key_row = QHBoxLayout()
-        key_row.setSpacing(6)
-        self._key_input = QLineEdit()
-        self._key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self._key_input.setPlaceholderText("sk-ant-...")
-        self._key_input.setText(load_api_key())
-        self._key_input.setStyleSheet(_INPUT_QSS)
-        key_row.addWidget(self._key_input)
+        key_label_a = QLabel("API Key")
+        key_label_a.setStyleSheet("color: #a6adc8;")
+        layout.addWidget(key_label_a)
 
-        show_cb = QCheckBox("Show")
-        show_cb.setStyleSheet("color: #585b70;")
-        show_cb.toggled.connect(
-            lambda on: self._key_input.setEchoMode(
+        key_row_a = QHBoxLayout()
+        key_row_a.setSpacing(6)
+        self._anthropic_key = QLineEdit()
+        self._anthropic_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self._anthropic_key.setPlaceholderText("sk-ant-...")
+        self._anthropic_key.setText(load_api_key())
+        self._anthropic_key.setStyleSheet(_INPUT_QSS)
+        key_row_a.addWidget(self._anthropic_key)
+        show_a = QCheckBox("Show")
+        show_a.setStyleSheet("color: #585b70;")
+        show_a.toggled.connect(
+            lambda on: self._anthropic_key.setEchoMode(
                 QLineEdit.EchoMode.Normal if on else QLineEdit.EchoMode.Password
             )
         )
-        key_row.addWidget(show_cb)
-        layout.addLayout(key_row)
+        key_row_a.addWidget(show_a)
+        layout.addLayout(key_row_a)
 
-        layout.addSpacing(4)
+        model_label_a = QLabel("Model")
+        model_label_a.setStyleSheet("color: #a6adc8;")
+        layout.addWidget(model_label_a)
 
-        # Model selector
-        model_label = QLabel("Model")
-        model_label.setStyleSheet("color: #a6adc8;")
-        layout.addWidget(model_label)
-
-        self._selected_model = load_model()
-        self._model_buttons: list[tuple[str, QPushButton]] = []
-        model_group = QVBoxLayout()
-        model_group.setSpacing(8)
+        model_group_a = QVBoxLayout()
+        model_group_a.setSpacing(6)
         for model_id, display_name, description in AVAILABLE_MODELS:
             btn = QPushButton(f"{display_name}  —  {description}")
-            btn.setStyleSheet(_MODEL_BTN_ON if model_id == self._selected_model else _MODEL_BTN_OFF)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.clicked.connect(lambda _, mid=model_id: self._select_model(mid))
-            self._model_buttons.append((model_id, btn))
-            model_group.addWidget(btn)
-        layout.addLayout(model_group)
+            btn.clicked.connect(lambda _, mid=model_id: self._select_anthropic_model(mid))
+            self._anthropic_model_buttons.append((model_id, btn))
+            model_group_a.addWidget(btn)
+        layout.addLayout(model_group_a)
+
+        layout.addSpacing(8)
+
+        # ── OpenAI section ─────────────────────────────────────────────────
+        self._openai_header = _ProviderHeader("OpenAI")
+        self._openai_header.clicked.connect(lambda: self._set_provider("openai"))
+        layout.addWidget(self._openai_header)
+
+        key_label_o = QLabel("API Key")
+        key_label_o.setStyleSheet("color: #a6adc8;")
+        layout.addWidget(key_label_o)
+
+        key_row_o = QHBoxLayout()
+        key_row_o.setSpacing(6)
+        self._openai_key = QLineEdit()
+        self._openai_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self._openai_key.setPlaceholderText("sk-...")
+        self._openai_key.setText(load_openai_api_key())
+        self._openai_key.setStyleSheet(_INPUT_QSS)
+        key_row_o.addWidget(self._openai_key)
+        show_o = QCheckBox("Show")
+        show_o.setStyleSheet("color: #585b70;")
+        show_o.toggled.connect(
+            lambda on: self._openai_key.setEchoMode(
+                QLineEdit.EchoMode.Normal if on else QLineEdit.EchoMode.Password
+            )
+        )
+        key_row_o.addWidget(show_o)
+        layout.addLayout(key_row_o)
+
+        model_label_o = QLabel("Model")
+        model_label_o.setStyleSheet("color: #a6adc8;")
+        layout.addWidget(model_label_o)
+
+        model_group_o = QVBoxLayout()
+        model_group_o.setSpacing(6)
+        for model_id, display_name, description in AVAILABLE_OPENAI_MODELS:
+            btn = QPushButton(f"{display_name}  —  {description}")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda _, mid=model_id: self._select_openai_model(mid))
+            self._openai_model_buttons.append((model_id, btn))
+            model_group_o.addWidget(btn)
+        layout.addLayout(model_group_o)
+
+        layout.addSpacing(8)
+
+        # ── Gemini section ─────────────────────────────────────────────────
+        self._gemini_header = _ProviderHeader("Google Gemini")
+        self._gemini_header.clicked.connect(lambda: self._set_provider("gemini"))
+        layout.addWidget(self._gemini_header)
+
+        key_label_g = QLabel("API Key")
+        key_label_g.setStyleSheet("color: #a6adc8;")
+        layout.addWidget(key_label_g)
+
+        key_row_g = QHBoxLayout()
+        key_row_g.setSpacing(6)
+        self._gemini_key = QLineEdit()
+        self._gemini_key.setEchoMode(QLineEdit.EchoMode.Password)
+        self._gemini_key.setPlaceholderText("AIza...")
+        self._gemini_key.setText(load_gemini_api_key())
+        self._gemini_key.setStyleSheet(_INPUT_QSS)
+        key_row_g.addWidget(self._gemini_key)
+        show_g = QCheckBox("Show")
+        show_g.setStyleSheet("color: #585b70;")
+        show_g.toggled.connect(
+            lambda on: self._gemini_key.setEchoMode(
+                QLineEdit.EchoMode.Normal if on else QLineEdit.EchoMode.Password
+            )
+        )
+        key_row_g.addWidget(show_g)
+        layout.addLayout(key_row_g)
+
+        model_label_g = QLabel("Model")
+        model_label_g.setStyleSheet("color: #a6adc8;")
+        layout.addWidget(model_label_g)
+
+        model_group_g = QVBoxLayout()
+        model_group_g.setSpacing(6)
+        for model_id, display_name, description in AVAILABLE_GEMINI_MODELS:
+            btn = QPushButton(f"{display_name}  —  {description}")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda _, mid=model_id: self._select_gemini_model(mid))
+            self._gemini_model_buttons.append((model_id, btn))
+            model_group_g.addWidget(btn)
+        layout.addLayout(model_group_g)
 
         layout.addSpacing(12)
 
-        # -- Buttons --
+        # ── Save / Cancel ──────────────────────────────────────────────────
         btn_row = QHBoxLayout()
         btn_row.addStretch()
 
@@ -953,17 +1073,99 @@ class _SettingsDialog(QDialog):
 
         layout.addLayout(btn_row)
 
-    def _select_model(self, model_id: str):
-        self._selected_model = model_id
-        self._update_model_buttons()
+        # Install event filters so clicking anywhere in a section activates it
+        self._anthropic_key.installEventFilter(self)
+        self._openai_key.installEventFilter(self)
+        self._gemini_key.installEventFilter(self)
 
-    def _update_model_buttons(self):
-        for mid, btn in self._model_buttons:
-            btn.setStyleSheet(_MODEL_BTN_ON if mid == self._selected_model else _MODEL_BTN_OFF)
+        # Initial render
+        self._refresh_ui()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        QTimer.singleShot(0, self._fix_layout)
+
+    def _fix_layout(self):
+        self._refresh_ui()
+        self.layout().activate()
+        self.adjustSize()
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.MouseButtonPress:
+            if obj is self._anthropic_key:
+                self._set_provider("anthropic")
+            elif obj is self._openai_key:
+                self._set_provider("openai")
+            elif obj is self._gemini_key:
+                self._set_provider("gemini")
+        return super().eventFilter(obj, event)
+
+    # ── Provider selection ─────────────────────────────────────────────────
+
+    def _set_provider(self, provider: str):
+        self._active_provider = provider
+        self._refresh_ui()
+
+    def _select_anthropic_model(self, model_id: str):
+        self._selected_anthropic_model = model_id
+        self._set_provider("anthropic")
+
+    def _select_openai_model(self, model_id: str):
+        self._selected_openai_model = model_id
+        self._set_provider("openai")
+
+    def _select_gemini_model(self, model_id: str):
+        self._selected_gemini_model = model_id
+        self._set_provider("gemini")
+
+    def _refresh_ui(self):
+        anthropic_active = self._active_provider == "anthropic"
+        openai_active = self._active_provider == "openai"
+        gemini_active = self._active_provider == "gemini"
+
+        # Section headers
+        self._anthropic_header.setStyleSheet(
+            "font-size: 12pt; font-weight: bold; color: "
+            + ("#fab387;" if anthropic_active else "#45475a;")
+        )
+        self._openai_header.setStyleSheet(
+            "font-size: 12pt; font-weight: bold; color: "
+            + ("#a6e3a1;" if openai_active else "#45475a;")
+        )
+        self._gemini_header.setStyleSheet(
+            "font-size: 12pt; font-weight: bold; color: "
+            + ("#89b4fa;" if gemini_active else "#45475a;")
+        )
+
+        # Model buttons — Anthropic (orange when selected)
+        for mid, btn in self._anthropic_model_buttons:
+            if mid == self._selected_anthropic_model and anthropic_active:
+                btn.setStyleSheet(_MODEL_BTN_ON)
+            else:
+                btn.setStyleSheet(_MODEL_BTN_OFF)
+
+        # Model buttons — OpenAI (green when selected)
+        for mid, btn in self._openai_model_buttons:
+            if mid == self._selected_openai_model and openai_active:
+                btn.setStyleSheet(_MODEL_BTN_ON_GREEN)
+            else:
+                btn.setStyleSheet(_MODEL_BTN_OFF)
+
+        # Model buttons — Gemini (blue when selected)
+        for mid, btn in self._gemini_model_buttons:
+            if mid == self._selected_gemini_model and gemini_active:
+                btn.setStyleSheet(_MODEL_BTN_ON_BLUE)
+            else:
+                btn.setStyleSheet(_MODEL_BTN_OFF)
 
     def _save(self):
-        save_api_key(self._key_input.text().strip())
-        save_model(self._selected_model)
+        save_api_key(self._anthropic_key.text().strip())
+        save_model(self._selected_anthropic_model)
+        save_openai_api_key(self._openai_key.text().strip())
+        save_openai_model(self._selected_openai_model)
+        save_gemini_api_key(self._gemini_key.text().strip())
+        save_gemini_model(self._selected_gemini_model)
+        save_provider(self._active_provider)
         self.accept()
 
 

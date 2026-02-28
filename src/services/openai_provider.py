@@ -1,19 +1,22 @@
-"""Anthropic Claude API implementation of LLMProvider."""
+"""OpenAI API implementation of LLMProvider."""
 
 from __future__ import annotations
 
-import anthropic
+import base64
+import io
+
+from openai import OpenAI
+from pypdf import PdfReader
 
 from src.models.session import ReviewItem, FollowupMessage
 from src.services.llm_service import LLMProvider
 from src.services.note_parser import ParsedNote
-
-from src.utils.config import DEFAULT_MODEL
+from src.utils.config import OPENAI_DEFAULT_MODEL
 
 SYSTEM_PROMPT = """\
 You are a study assistant helping a student review their lecture notes.
 You will receive:
-1. The full lecture PDF
+1. The full lecture content as extracted text, slide by slide
 2. A specific slide number the student was on
 3. One or more student notes about that slide, each with a type indicator
 
@@ -29,7 +32,7 @@ If wrong, gently correct with specifics. If right, confirm and reinforce.
 of the key concepts from this slide that relate to their note.
 
 Keep responses focused and educational. Reference the slide content specifically \
-when possible. You have the full lecture PDF for broader context but focus on the \
+when possible. Use the full lecture text for broader context but focus on the \
 specific slide referenced.
 
 FORMAT: You will receive multiple notes separated by numbered headers. Respond to \
@@ -45,10 +48,18 @@ NOTE_TYPE_LABELS = {
 }
 
 
-class ClaudeProvider(LLMProvider):
+def _extract_pdf_text(pdf_base64: str) -> list[str]:
+    """Return a list of page text strings (one per page) from a base64 PDF."""
+    pdf_bytes = base64.b64decode(pdf_base64)
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    return [page.extract_text() or "" for page in reader.pages]
+
+
+class OpenAIProvider(LLMProvider):
     def __init__(self, api_key: str, model: str = ""):
-        self._client = anthropic.Anthropic(api_key=api_key)
-        self._model = model or DEFAULT_MODEL
+        self._client = OpenAI(api_key=api_key)
+        self._model = model or OPENAI_DEFAULT_MODEL
+        self._page_texts: list[str] | None = None
 
     def review_notes(
         self,
@@ -56,6 +67,16 @@ class ClaudeProvider(LLMProvider):
         slide_number: int,
         notes: list[ParsedNote],
     ) -> list[ReviewItem]:
+        # Extract text once and cache across slides (same pdf_base64 per session)
+        if self._page_texts is None:
+            self._page_texts = _extract_pdf_text(pdf_base64)
+
+        # Build full lecture context
+        full_text = "\n\n".join(
+            f"[Slide {i + 1}]\n{text}" if text.strip() else f"[Slide {i + 1}]\n(no extractable text)"
+            for i, text in enumerate(self._page_texts)
+        )
+
         # Build the notes section
         notes_text = []
         for i, note in enumerate(notes, 1):
@@ -63,37 +84,21 @@ class ClaudeProvider(LLMProvider):
             notes_text.append(f"Note {i} ({label}):\n{note.text}")
 
         user_text = (
+            f"LECTURE CONTENT:\n{full_text}\n\n"
             f"The student is on SLIDE {slide_number} of this lecture.\n\n"
             + "\n\n".join(notes_text)
         )
 
-        message = self._client.messages.create(
+        response = self._client.chat.completions.create(
             model=self._model,
             max_tokens=4096,
-            system=SYSTEM_PROMPT,
             messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "document",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "application/pdf",
-                                "data": pdf_base64,
-                            },
-                            "cache_control": {"type": "ephemeral"},
-                        },
-                        {
-                            "type": "text",
-                            "text": user_text,
-                        },
-                    ],
-                }
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_text},
             ],
         )
 
-        response_text = message.content[0].text
+        response_text = response.choices[0].message.content or ""
         return self._parse_response(notes, response_text)
 
     def follow_up(
@@ -106,28 +111,24 @@ class ClaudeProvider(LLMProvider):
         history: list[FollowupMessage],
         question: str,
     ) -> str:
+        if self._page_texts is None:
+            self._page_texts = _extract_pdf_text(pdf_base64)
+
+        full_text = "\n\n".join(
+            f"[Slide {i + 1}]\n{text}" if text.strip() else f"[Slide {i + 1}]\n(no extractable text)"
+            for i, text in enumerate(self._page_texts)
+        )
+
         label = NOTE_TYPE_LABELS.get(note_type, "GENERAL")
         user_text = (
+            f"LECTURE CONTENT:\n{full_text}\n\n"
             f"The student is on SLIDE {slide_number} of this lecture.\n\n"
             f"Note ({label}):\n{original_note}"
         )
 
         messages: list[dict] = [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "document",
-                        "source": {
-                            "type": "base64",
-                            "media_type": "application/pdf",
-                            "data": pdf_base64,
-                        },
-                        "cache_control": {"type": "ephemeral"},
-                    },
-                    {"type": "text", "text": user_text},
-                ],
-            },
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_text},
             {"role": "assistant", "content": initial_response},
         ]
 
@@ -135,23 +136,19 @@ class ClaudeProvider(LLMProvider):
             messages.append({"role": msg.role, "content": msg.text})
         messages.append({"role": "user", "content": question})
 
-        response = self._client.messages.create(
+        response = self._client.chat.completions.create(
             model=self._model,
             max_tokens=2048,
-            system=SYSTEM_PROMPT,
             messages=messages,
         )
-        return response.content[0].text
+        return response.choices[0].message.content or ""
 
     def _parse_response(
         self,
         notes: list[ParsedNote],
         response_text: str,
     ) -> list[ReviewItem]:
-        """Split Claude's response by --- delimiters, matching to notes."""
         parts = [p.strip() for p in response_text.split("\n---\n")]
-
-        # If splitting didn't produce enough parts, try just "---"
         if len(parts) < len(notes):
             parts = [p.strip() for p in response_text.split("---")]
 

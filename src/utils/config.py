@@ -29,6 +29,34 @@ def _write_config(data: dict) -> None:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 
+# ---------------------------------------------------------------------------
+# Provider selection
+# ---------------------------------------------------------------------------
+
+def load_provider() -> str:
+    """Return the active provider: 'anthropic' or 'openai'. Defaults to 'anthropic'."""
+    return _read_config().get("provider", "anthropic")
+
+
+def save_provider(provider: str) -> None:
+    data = _read_config()
+    data["provider"] = provider
+    _write_config(data)
+
+
+# ---------------------------------------------------------------------------
+# Anthropic
+# ---------------------------------------------------------------------------
+
+DEFAULT_MODEL = "claude-sonnet-4-20250514"
+
+AVAILABLE_MODELS = [
+    ("claude-opus-4-6", "Opus 4.6", "Most intelligent model for highly complex tasks."),
+    ("claude-sonnet-4-20250514", "Sonnet 4", "High performance at speed."),
+    ("claude-haiku-4-20250414", "Haiku 4", "Near-instant responsiveness."),
+]
+
+
 def load_api_key() -> str:
     """Read the Anthropic API key from config.json. Returns '' if not set."""
     return _read_config().get("api_key", "")
@@ -41,22 +69,80 @@ def save_api_key(key: str) -> None:
     _write_config(data)
 
 
-DEFAULT_MODEL = "claude-sonnet-4-20250514"
-
-AVAILABLE_MODELS = [
-    ("claude-opus-4-6", "Opus 4.6", "Most capable, higher cost"),
-    ("claude-sonnet-4-20250514", "Sonnet 4", "Fast and cost-effective"),
-    ("claude-haiku-4-20250414", "Haiku 4", "Fastest, lowest cost"),
-]
-
-
 def load_model() -> str:
-    """Read the selected model from config.json. Returns default if not set."""
+    """Read the selected Anthropic model from config.json. Returns default if not set."""
     return _read_config().get("model", DEFAULT_MODEL)
 
 
 def save_model(model_id: str) -> None:
-    """Persist the selected model to config.json."""
+    """Persist the selected Anthropic model to config.json."""
     data = _read_config()
     data["model"] = model_id
+    _write_config(data)
+
+
+# ---------------------------------------------------------------------------
+# OpenAI
+# ---------------------------------------------------------------------------
+
+OPENAI_DEFAULT_MODEL = "gpt-4o"
+
+AVAILABLE_OPENAI_MODELS = [
+    ("o1", "o1", "Reasoning model designed to solve hard problems."),
+    ("gpt-4o", "GPT-4o", "Fast, intelligent, flexible GPT model."),
+    ("o3-mini", "o3-mini", "Fast, flexible, intelligent reasoning model."),
+    ("gpt-4o-mini", "GPT-4o mini", "Affordable and intelligent small model."),
+]
+
+
+def load_openai_api_key() -> str:
+    return _read_config().get("openai_api_key", "")
+
+
+def save_openai_api_key(key: str) -> None:
+    data = _read_config()
+    data["openai_api_key"] = key
+    _write_config(data)
+
+
+def load_openai_model() -> str:
+    return _read_config().get("openai_model", OPENAI_DEFAULT_MODEL)
+
+
+def save_openai_model(model_id: str) -> None:
+    data = _read_config()
+    data["openai_model"] = model_id
+    _write_config(data)
+
+
+# ---------------------------------------------------------------------------
+# Google Gemini
+# ---------------------------------------------------------------------------
+
+GEMINI_DEFAULT_MODEL = "gemini-2.0-flash"
+
+AVAILABLE_GEMINI_MODELS = [
+    ("gemini-1.5-pro", "Pro 1.5", "Complex reasoning across text, images, and code."),
+    ("gemini-2.0-flash", "Flash 2.0", "Next generation features, speed, and performance."),
+    ("gemini-1.5-flash", "Flash 1.5", "Fast and versatile performance across many tasks."),
+]
+
+
+def load_gemini_api_key() -> str:
+    return _read_config().get("gemini_api_key", "")
+
+
+def save_gemini_api_key(key: str) -> None:
+    data = _read_config()
+    data["gemini_api_key"] = key
+    _write_config(data)
+
+
+def load_gemini_model() -> str:
+    return _read_config().get("gemini_model", GEMINI_DEFAULT_MODEL)
+
+
+def save_gemini_model(model_id: str) -> None:
+    data = _read_config()
+    data["gemini_model"] = model_id
     _write_config(data)

@@ -48,16 +48,31 @@ class Group:
 
 
 @dataclass
+class FollowupMessage:
+    role: str  # "user" | "assistant"
+    text: str
+
+    def to_dict(self) -> dict:
+        return {"role": self.role, "text": self.text}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> FollowupMessage:
+        return cls(role=data["role"], text=data["text"])
+
+
+@dataclass
 class ReviewItem:
     note_type: str
     original: str
     response: str
+    followups: list[FollowupMessage] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
             "note_type": self.note_type,
             "original": self.original,
             "response": self.response,
+            "followups": [f.to_dict() for f in self.followups],
         }
 
     @classmethod
@@ -66,6 +81,7 @@ class ReviewItem:
             note_type=data["note_type"],
             original=data["original"],
             response=data["response"],
+            followups=[FollowupMessage.from_dict(f) for f in data.get("followups", [])],
         )
 
 

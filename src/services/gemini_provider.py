@@ -1,14 +1,16 @@
-"""Anthropic Claude API implementation of LLMProvider."""
+"""Google Gemini API implementation of LLMProvider — native PDF support."""
 
 from __future__ import annotations
 
-import anthropic
+import base64
+
+from google import genai
+from google.genai import types
 
 from src.models.session import ReviewItem, FollowupMessage
 from src.services.llm_service import LLMProvider
 from src.services.note_parser import ParsedNote
-
-from src.utils.config import DEFAULT_MODEL
+from src.utils.config import GEMINI_DEFAULT_MODEL
 
 SYSTEM_PROMPT = """\
 You are a study assistant helping a student review their lecture notes.
@@ -45,10 +47,10 @@ NOTE_TYPE_LABELS = {
 }
 
 
-class ClaudeProvider(LLMProvider):
+class GeminiProvider(LLMProvider):
     def __init__(self, api_key: str, model: str = ""):
-        self._client = anthropic.Anthropic(api_key=api_key)
-        self._model = model or DEFAULT_MODEL
+        self._client = genai.Client(api_key=api_key)
+        self._model_name = model or GEMINI_DEFAULT_MODEL
 
     def review_notes(
         self,
@@ -56,7 +58,6 @@ class ClaudeProvider(LLMProvider):
         slide_number: int,
         notes: list[ParsedNote],
     ) -> list[ReviewItem]:
-        # Build the notes section
         notes_text = []
         for i, note in enumerate(notes, 1):
             label = NOTE_TYPE_LABELS.get(note.note_type, "GENERAL")
@@ -67,33 +68,21 @@ class ClaudeProvider(LLMProvider):
             + "\n\n".join(notes_text)
         )
 
-        message = self._client.messages.create(
-            model=self._model,
-            max_tokens=4096,
-            system=SYSTEM_PROMPT,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "document",
-                            "source": {
-                                "type": "base64",
-                                "media_type": "application/pdf",
-                                "data": pdf_base64,
-                            },
-                            "cache_control": {"type": "ephemeral"},
-                        },
-                        {
-                            "type": "text",
-                            "text": user_text,
-                        },
-                    ],
-                }
+        pdf_bytes = base64.b64decode(pdf_base64)
+
+        response = self._client.models.generate_content(
+            model=self._model_name,
+            contents=[
+                types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
+                types.Part.from_text(user_text),
             ],
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                max_output_tokens=4096,
+            ),
         )
 
-        response_text = message.content[0].text
+        response_text = response.text or ""
         return self._parse_response(notes, response_text)
 
     def follow_up(
@@ -112,46 +101,49 @@ class ClaudeProvider(LLMProvider):
             f"Note ({label}):\n{original_note}"
         )
 
-        messages: list[dict] = [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "document",
-                        "source": {
-                            "type": "base64",
-                            "media_type": "application/pdf",
-                            "data": pdf_base64,
-                        },
-                        "cache_control": {"type": "ephemeral"},
-                    },
-                    {"type": "text", "text": user_text},
+        pdf_bytes = base64.b64decode(pdf_base64)
+
+        contents = [
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
+                    types.Part.from_text(user_text),
                 ],
-            },
-            {"role": "assistant", "content": initial_response},
+            ),
+            types.Content(
+                role="model",
+                parts=[types.Part.from_text(initial_response)],
+            ),
         ]
 
         for msg in history:
-            messages.append({"role": msg.role, "content": msg.text})
-        messages.append({"role": "user", "content": question})
+            role = "model" if msg.role == "assistant" else "user"
+            contents.append(types.Content(
+                role=role,
+                parts=[types.Part.from_text(msg.text)],
+            ))
+        contents.append(types.Content(
+            role="user",
+            parts=[types.Part.from_text(question)],
+        ))
 
-        response = self._client.messages.create(
-            model=self._model,
-            max_tokens=2048,
-            system=SYSTEM_PROMPT,
-            messages=messages,
+        response = self._client.models.generate_content(
+            model=self._model_name,
+            contents=contents,
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                max_output_tokens=2048,
+            ),
         )
-        return response.content[0].text
+        return response.text or ""
 
     def _parse_response(
         self,
         notes: list[ParsedNote],
         response_text: str,
     ) -> list[ReviewItem]:
-        """Split Claude's response by --- delimiters, matching to notes."""
         parts = [p.strip() for p in response_text.split("\n---\n")]
-
-        # If splitting didn't produce enough parts, try just "---"
         if len(parts) < len(notes):
             parts = [p.strip() for p in response_text.split("---")]
 

@@ -116,7 +116,7 @@ class NotesEditor(QPlainTextEdit):
     def paintEvent(self, event):
         super().paintEvent(event)
 
-        if not self.hasFocus():
+        if self.isReadOnly() or not self.hasFocus():
             return
 
         if self.toPlainText():
