@@ -122,9 +122,9 @@ def save_openai_model(model_id: str) -> None:
 GEMINI_DEFAULT_MODEL = "gemini-2.5-flash"
 
 AVAILABLE_GEMINI_MODELS = [
-    ("gemini-2.5-pro", "Pro 2.5", "Advanced reasoning, 1M context, best for complex tasks."),
-    ("gemini-2.5-flash", "Flash 2.5", "Fast and capable, best balance of speed and quality."),
-    ("gemini-2.5-flash-lite", "Flash 2.5 Lite", "Fastest and cheapest, optimized for high throughput."),
+    ("gemini-2.5-pro", "Pro 2.5", "Advanced reasoning, best for complex tasks."),
+    ("gemini-2.5-flash", "Flash 2.5", "Fast and capable, balanced speed and quality."),
+    ("gemini-2.5-flash-lite", "Flash 2.5 Lite", "Fastest and cheapest."),
 ]
 
 

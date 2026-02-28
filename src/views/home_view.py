@@ -1009,7 +1009,7 @@ class _SettingsDialog(QDialog):
         layout.addSpacing(8)
 
         # ── Gemini section ─────────────────────────────────────────────────
-        self._gemini_header = _ProviderHeader("Google Gemini")
+        self._gemini_header = _ProviderHeader("Google")
         self._gemini_header.clicked.connect(lambda: self._set_provider("gemini"))
         layout.addWidget(self._gemini_header)
 

@@ -508,7 +508,7 @@ class ReviewView(QWidget):
         if self._provider_name == "openai":
             provider_label, placeholder = "OpenAI", "sk-..."
         elif self._provider_name == "gemini":
-            provider_label, placeholder = "Google Gemini", "AIza..."
+            provider_label, placeholder = "Google", "AIza..."
         else:
             provider_label, placeholder = "Anthropic", "sk-ant-..."
         dialog = ApiKeyDialog(self, provider_label, placeholder)
