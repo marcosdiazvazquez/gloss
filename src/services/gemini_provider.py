@@ -74,7 +74,7 @@ class GeminiProvider(LLMProvider):
             model=self._model_name,
             contents=[
                 types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
-                types.Part.from_text(user_text),
+                types.Part.from_text(text=user_text),
             ],
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
@@ -108,12 +108,12 @@ class GeminiProvider(LLMProvider):
                 role="user",
                 parts=[
                     types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
-                    types.Part.from_text(user_text),
+                    types.Part.from_text(text=user_text),
                 ],
             ),
             types.Content(
                 role="model",
-                parts=[types.Part.from_text(initial_response)],
+                parts=[types.Part.from_text(text=initial_response)],
             ),
         ]
 
@@ -121,11 +121,11 @@ class GeminiProvider(LLMProvider):
             role = "model" if msg.role == "assistant" else "user"
             contents.append(types.Content(
                 role=role,
-                parts=[types.Part.from_text(msg.text)],
+                parts=[types.Part.from_text(text=msg.text)],
             ))
         contents.append(types.Content(
             role="user",
-            parts=[types.Part.from_text(question)],
+            parts=[types.Part.from_text(text=question)],
         ))
 
         response = self._client.models.generate_content(
