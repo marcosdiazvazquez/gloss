@@ -406,7 +406,10 @@ class ReviewView(QWidget):
             if i < len(items):
                 card.set_response(items[i].response)
                 item = items[i]
-                card.regenerate_requested.disconnect()
+                try:
+                    card.regenerate_requested.disconnect()
+                except (TypeError, RuntimeError):
+                    pass
                 card.regenerate_requested.connect(
                     lambda sk=slide_key, c=card, n=item: self._regenerate_card(sk, c, n)
                 )

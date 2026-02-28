@@ -13,6 +13,19 @@ from src.services.llm_service import LLMProvider
 from src.services.note_parser import ParsedNote
 from src.utils.config import OPENAI_DEFAULT_MODEL
 
+# Models that require max_completion_tokens instead of max_tokens
+_COMPLETION_TOKENS_MODELS = {"o1", "o1-mini", "o1-preview", "o3", "o3-mini", "o3-pro"}
+
+
+def _max_tokens_param(model: str, value: int) -> dict:
+    """Return the correct max tokens parameter for the given model."""
+    base = model.split("-")[0] + ("-".join(model.split("-")[:2]) if "-" in model else "")
+    # Check if any prefix matches
+    for prefix in _COMPLETION_TOKENS_MODELS:
+        if model == prefix or model.startswith(prefix + "-"):
+            return {"max_completion_tokens": value}
+    return {"max_tokens": value}
+
 SYSTEM_PROMPT = """\
 You are a study assistant helping a student review their lecture notes.
 You will receive:
@@ -91,7 +104,7 @@ class OpenAIProvider(LLMProvider):
 
         response = self._client.chat.completions.create(
             model=self._model,
-            max_tokens=4096,
+            **_max_tokens_param(self._model, 4096),
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_text},
@@ -138,7 +151,7 @@ class OpenAIProvider(LLMProvider):
 
         response = self._client.chat.completions.create(
             model=self._model,
-            max_tokens=2048,
+            **_max_tokens_param(self._model, 2048),
             messages=messages,
         )
         return response.choices[0].message.content or ""
